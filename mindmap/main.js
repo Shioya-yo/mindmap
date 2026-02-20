@@ -5,21 +5,26 @@ let nodes = [
   { id: 1, x: 200, y: 200, text: "メイン", parent: null }
 ];
 
+let draggingNode = null;
+let dragOffsetX = 0;
+let dragOffsetY = 0;
+
 function draw() {
   svg.innerHTML = "";
 
-  // 1. 線を描く
+  // 1. 線
   nodes.forEach(node => {
     if (node.parent !== null) drawLink(node.parent, node.id);
   });
 
-  // 2. ノードを描く
+  // 2. ノード
   nodes.forEach(node => drawNode(node));
 }
 
 function drawNode(node) {
   const g = createSvg("g");
   g.setAttribute("transform", `translate(${node.x}, ${node.y})`);
+  g.style.cursor = "grab";
 
   const rect = createSvg("rect");
   rect.setAttribute("width", 120);
@@ -34,15 +39,37 @@ function drawNode(node) {
   text.setAttribute("y", 25);
   text.textContent = node.text;
 
-  // ＋ボタン
+  // ＋ボタン（最初は非表示）
   const plus = createSvg("text");
   plus.setAttribute("x", 130);
   plus.setAttribute("y", 25);
   plus.setAttribute("font-size", "20");
   plus.style.cursor = "pointer";
+  plus.style.opacity = 0;        // ← hover するまで透明
+  plus.style.transition = "0.2s";
   plus.textContent = "+";
 
-  plus.addEventListener("click", () => addChild(node));
+  plus.addEventListener("click", e => {
+    e.stopPropagation();
+    addChild(node);
+  });
+
+  // ★ hover で ＋ を表示
+  g.addEventListener("mouseenter", () => {
+    plus.style.opacity = 1;
+  });
+
+  g.addEventListener("mouseleave", () => {
+    plus.style.opacity = 0;
+  });
+
+  // ドラッグ開始
+  g.addEventListener("pointerdown", e => {
+    draggingNode = node;
+    dragOffsetX = e.clientX - node.x;
+    dragOffsetY = e.clientY - node.y;
+    g.style.cursor = "grabbing";
+  });
 
   g.appendChild(rect);
   g.appendChild(text);
@@ -50,11 +77,21 @@ function drawNode(node) {
   svg.appendChild(g);
 }
 
+// SVG 全体でドラッグ処理
+svg.addEventListener("pointermove", e => {
+  if (!draggingNode) return;
+  draggingNode.x = e.clientX - dragOffsetX;
+  draggingNode.y = e.clientY - dragOffsetY;
+  draw();
+});
+
+svg.addEventListener("pointerup", () => {
+  draggingNode = null;
+});
+
 // 子ノード追加（避けるロジック）
 function addChild(parent) {
   const children = nodes.filter(n => n.parent === parent.id);
-
-  // 子ノードの数に応じて縦にずらす
   const offset = (children.length - 1) * 60;
 
   const newNode = {
@@ -94,7 +131,6 @@ function drawLink(parentId, childId) {
   svg.appendChild(path);
 }
 
-// SVG 要素作成ヘルパー
 function createSvg(tag) {
   return document.createElementNS("http://www.w3.org/2000/svg", tag);
 }
